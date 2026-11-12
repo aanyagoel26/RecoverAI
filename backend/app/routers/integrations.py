@@ -95,18 +95,18 @@ def test_provider(provider: str, body: TestIn, cu: CurrentUser = Depends(require
             if env == providers.paypal_environment(db, mid):
                 checkout.touch_connection(db, mid, True)
             ok, msg = True, f"PayPal {env.title()} issued an access token."
-        elif provider in ("anthropic", "openai"):
-            saved = providers.load(db, mid, provider)
-            s = get_settings()
-            key = (saved or {}).get("api_key") or (s.anthropic_api_key if provider == "anthropic" else s.openai_api_key)
-            if not key:
-                raise HTTPException(400, "No API key saved for this provider")
-            cfg = {"provider": provider, "api_key": key,
-                   "model": (saved or {}).get("model") or (s.anthropic_model if provider == "anthropic" else s.openai_model),
-                   "base_url": ((saved or {}).get("base_url") or s.openai_base_url).rstrip("/")}
-            started = datetime.now(timezone.utc)
-            fn = llm._anthropic if provider == "anthropic" else llm._openai
-            data, usage = fn(cfg, [{"role": "user", "content": "Reply with the single word: ready"}], "You are a connectivity test.", None, 20)
+         elif provider in providers.AI_PROVIDERS:            
+             saved = providers.load(db, mid, provider)            
+             key = (saved or {}).get("api_key") or providers._env_key(provider)            
+             if not key:                
+                 raise HTTPException(400, "No API key saved for this provider")            
+                 cfg = {"provider": provider, "api_key": key,                   
+                        "model": (saved or {}).get("model") or providers._default_model(provider),                   
+                        "base_url": providers._base_url(provider, (saved or {}).get("base_url"))}            
+                 started = datetime.now(timezone.utc)            
+                 fn = llm._anthropic if provider == "anthropic" else llm._openai            
+                 data, usage = fn(cfg, [{"role": "user", "content": "Reply with the single word: ready"}],                             
+                                  "You are a connectivity test.", None, 60)
             ms_ = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
             llm._record(db, mid, cfg, "connectivity_test", True, __import__("time").monotonic() - ms_ / 1000, usage)
             ok, msg = True, f"{cfg['model']} answered “{llm.text_of(data).strip()[:40]}” in {ms_} ms."
