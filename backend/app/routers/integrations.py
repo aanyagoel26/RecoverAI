@@ -65,7 +65,8 @@ def delete_credentials(provider: str, cu: CurrentUser = Depends(require_approver
 
 
 class SelectIn(BaseModel):
-    ai_provider: str = Field(pattern="^(auto|anthropic|openai|none)$")
+    ai_provider: str = Field(pattern="^(auto|anthropic|openai|gemini|none)$")
+    
 
 
 @router.put("/api/integrations-ai-provider")
