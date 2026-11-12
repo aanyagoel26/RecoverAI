@@ -1,3 +1,4 @@
+
 """Environment configuration. Secrets are read from the environment only and never sent to the frontend."""
 from functools import lru_cache
 
@@ -9,8 +10,10 @@ class Settings(BaseSettings):
 
     app_env: str = "development"  # development | production | test
     app_name: str = "RecoverAI"
+
     # SQLite works out of the box for local dev and tests; use the Supabase Postgres URL in production.
     database_url: str = "sqlite:///./recoverai.db"
+
     jwt_secret: str = "change-me-in-production-please-32+chars"
     jwt_ttl_minutes: int = 60 * 12
     frontend_url: str = "http://localhost:5173"
@@ -29,13 +32,14 @@ class Settings(BaseSettings):
     secrets_key: str = ""
 
     # AI (optional; deterministic fallback when absent). Dashboard-saved keys take precedence.
-    ai_provider: str = "auto"  # auto | anthropic | openai
+    ai_provider: str = "auto"  # auto | anthropic | openai | gemini
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5-5"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = "https://api.openai.com/v1"
-    # Google Gemini (free tier available at https://aistudio.google.com) via its OpenAI-compatible endpoint
+
+    # Google Gemini via Google's OpenAI-compatible endpoint
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.8-flash"
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -53,8 +57,10 @@ class Settings(BaseSettings):
     # Agent
     agent_loop_seconds: int = 0  # 0 disables the background loop; POST /api/agent/run still works
     seed_demo_on_start: bool = True
-    # The demo workspace is shared by everyone who clicks "Explore the demo". Saving credentials there would let one
-    # visitor plant keys (or break PayPal) for all others, so integration changes are locked on it by default.
+
+    # The demo workspace is shared by everyone who clicks "Explore the demo".
+    # Saving credentials there would let one visitor plant keys (or break PayPal) for all others,
+    # so integration changes are locked on it by default.
     demo_integrations_locked: bool = True
 
     @property
@@ -67,7 +73,11 @@ class Settings(BaseSettings):
 
     @property
     def llm_configured(self) -> bool:
-        return bool(self.anthropic_api_key or self.openai_api_key or self.gemini_api_key)
+        return bool(
+            self.anthropic_api_key
+            or self.openai_api_key
+            or self.gemini_api_key
+        )
 
     @property
     def email_configured(self) -> bool:
