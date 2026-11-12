@@ -90,5 +90,5 @@ render.yaml   one-click deploy
 - **[FEATURE_GUIDE.md](FEATURE_GUIDE.md):** every screen, and journeys to try
 - **[TESTING_REPORT.md](TESTING_REPORT.md):** what was run, results, what needs your credentials
 - **[ARCHITECTURE.md](ARCHITECTURE.md):** components, data model, safety model
-- [PayPal setup](docs/PAYPAL_SETUP.md) · [API](docs/API.md) · [Deployment](docs/DEPLOYMENT.md) · [Video script](docs/VIDEO_SCRIPT.md) · [Devpost text](docs/DEVPOST.md) · [Submission checklist](docs/SUBMISSION_CHECKLIST.md).
+- [PayPal setup](docs/PAYPAL_SETUP.md) · [API](docs/API.md) · [Deployment](docs/DEPLOYMENT.md) · [Video script](docs/VIDEO_SCRIPT.md) · [Devpost text](docs/DEVPOST.md) · [Submission checklist](docs/SUBMISSION_CHECKLIST.md)
   
