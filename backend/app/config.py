@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = "https://api.openai.com/v1"
+    # Google Gemini (free tier available at https://aistudio.google.com) via its OpenAI-compatible endpoint
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     ai_timeout_seconds: int = 45
 
     # Email (optional; preview-only mode when absent)
@@ -63,7 +67,7 @@ class Settings(BaseSettings):
 
     @property
     def llm_configured(self) -> bool:
-        return bool(self.anthropic_api_key or self.openai_api_key)
+        return bool(self.anthropic_api_key or self.openai_api_key or self.gemini_api_key)
 
     @property
     def email_configured(self) -> bool:

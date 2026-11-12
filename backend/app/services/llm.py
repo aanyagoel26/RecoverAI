@@ -1,6 +1,7 @@
 """Provider-independent AI layer.
 
-Supports Anthropic (Messages API, native tool use) and any OpenAI-compatible Chat Completions API (function calling).
+Supports Anthropic (Messages API, native tool use), OpenAI, and Google Gemini — Gemini through Google's
+OpenAI-compatible endpoint (https://generativelanguage.googleapis.com/v1beta/openai), which has a free tier.
 Callers always speak one format (Anthropic-style content blocks); this module translates. Every call is time-limited,
 retried once on 429/5xx, and recorded in `ai_usage` (no prompts, outputs or keys are stored).
 If no provider is configured or the call fails, LLMUnavailable is raised and callers show a transparent fallback.
@@ -76,8 +77,14 @@ def _to_openai_messages(system, messages):
             continue
         if m["role"] == "assistant":
             text = "".join(b.get("text", "") for b in c if b.get("type") == "text")
-            calls = [{"id": b["id"], "type": "function", "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
-                     for b in c if b.get("type") == "tool_use"]
+            calls = []
+            for b in c:
+                if b.get("type") != "tool_use":
+                    continue
+                call = {"id": b["id"], "type": "function", "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
+                if b.get("_extra"):  # provider metadata (e.g. Gemini thought signatures) must be echoed back unchanged
+                    call["extra_content"] = b["_extra"]
+                calls.append(call)
             msg = {"role": "assistant", "content": text or None}
             if calls:
                 msg["tool_calls"] = calls
@@ -91,8 +98,20 @@ def _to_openai_messages(system, messages):
     return out
 
 
+PROVIDER_NAME = {"openai": "OpenAI", "gemini": "Gemini", "anthropic": "Anthropic"}
+
+
 def _openai(cfg, messages, system, tools, max_tokens):
-    body = {"model": cfg["model"], "messages": _to_openai_messages(system, messages), "max_completion_tokens": max_tokens}
+    """OpenAI Chat Completions format — used for OpenAI and for Gemini's OpenAI-compatible endpoint."""
+    gemini = cfg["provider"] == "gemini"
+    body = {"model": cfg["model"], "messages": _to_openai_messages(system, messages)}
+    if gemini:
+        # Gemini counts its internal "thinking" against the output budget, so leave headroom, and keep thinking
+        # light: faster answers and fewer free-tier tokens.
+        body["max_tokens"] = max_tokens + 2048
+        body["reasoning_effort"] = "low"
+    else:
+        body["max_completion_tokens"] = max_tokens
     if tools:
         body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t.get("description", ""),
                                                             "parameters": t.get("input_schema") or {"type": "object", "properties": {}}}} for t in tools]
@@ -102,9 +121,18 @@ def _openai(cfg, messages, system, tools, max_tokens):
     if r.status_code == 400 and "max_completion_tokens" in r.text:  # older OpenAI-compatible servers
         body["max_tokens"] = body.pop("max_completion_tokens")
         r = _post(url, headers, body)
+    if r.status_code == 400 and "reasoning" in r.text.lower() and "reasoning_effort" in body:  # model without thinking
+        body.pop("reasoning_effort")
+        r = _post(url, headers, body)
+    name = PROVIDER_NAME.get(cfg["provider"], cfg["provider"])
+    if r.status_code == 429:
+        hint = " (free-tier limit reached; wait a minute or check your quota in Google AI Studio)" if gemini else ""
+        raise LLMUnavailable(f"{name} rate limit{hint}: {_err(r)}")
     if r.status_code >= 400:
-        raise LLMUnavailable(f"OpenAI HTTP {r.status_code}: {_err(r)}")
+        raise LLMUnavailable(f"{name} HTTP {r.status_code}: {_err(r)}")
     data = r.json()
+    if isinstance(data, list):  # some Gemini error/edge responses arrive wrapped in a list
+        data = data[0] if data else {}
     msg = (data.get("choices") or [{}])[0].get("message") or {}
     blocks = []
     if msg.get("content"):
@@ -114,7 +142,12 @@ def _openai(cfg, messages, system, tools, max_tokens):
             args = json.loads(tc["function"].get("arguments") or "{}")
         except json.JSONDecodeError:
             args = {}
-        blocks.append({"type": "tool_use", "id": tc["id"], "name": tc["function"]["name"], "input": args})
+        block = {"type": "tool_use", "id": tc.get("id") or f"call_{len(blocks)}", "name": tc["function"]["name"], "input": args}
+        if tc.get("extra_content"):
+            block["_extra"] = tc["extra_content"]
+        blocks.append(block)
+    if not blocks:
+        raise LLMUnavailable(f"{name} returned an empty answer (finish reason: {(data.get('choices') or [{}])[0].get('finish_reason')})")
     u = data.get("usage") or {}
     return {"content": blocks}, {"in": u.get("prompt_tokens"), "out": u.get("completion_tokens")}
 

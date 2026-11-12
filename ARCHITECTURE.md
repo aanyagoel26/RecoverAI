@@ -24,9 +24,9 @@
 │ background agent loop (tick every AGENT_LOOP_SECONDS)                                                │
 └──────┬──────────────────────┬───────────────────────┬───────────────────────┬────────────────────────┘
        ▼                      ▼                       ▼                       ▼
- SQLite (dev) /         PayPal REST              Anthropic / OpenAI       Resend (email)
+ SQLite (dev) /         PayPal REST              Gemini / Anthropic /     Resend (email)
  Supabase Postgres      api-m(.sandbox).paypal   (optional)               Twilio (SMS, signed
- (24 tables, RLS)       ◄── PayPal webhooks                               status callbacks)
+ (24 tables, RLS)       ◄── PayPal webhooks       OpenAI                  status callbacks)
                           (verified, deduped)
 ```
 
@@ -186,6 +186,7 @@ The **Blocked** tab in Mission Control (`GET /api/firewall/blocked`) lists every
 | Provider | Fields |
 |---|---|
 | `paypal_sandbox` / `paypal_live` | client ID, secret, webhook ID |
+| `gemini` | API key, model |
 | `anthropic` | API key, model |
 | `openai` | API key, model, base URL |
 | `resend` | API key, from address |
@@ -203,10 +204,11 @@ The **Blocked** tab in Mission Control (`GET /api/firewall/blocked`) lists every
 
 `llm.chat(messages, system, tools, db, merchant_id, purpose)` returns an Anthropic-shaped response whichever provider answered:
 - **Anthropic Messages API:** used directly.
+- **Google Gemini (free tier):** through Google's OpenAI-compatible endpoint (`generativelanguage.googleapis.com/v1beta/openai`). Gemini counts thinking against the output budget, so requests get extra token headroom and `reasoning_effort: low`. The `extra_content` metadata Gemini attaches to tool calls (thought signatures) is kept and sent back unchanged in the next turn of the Copilot tool loop. Free-tier 429s produce a clear "free-tier limit reached" reason.
 - **OpenAI Chat Completions, or any compatible base URL:** requests are translated (tools, `tool_use`/`tool_result`, `max_completion_tokens` with fallback to `max_tokens`) and responses are translated back.
 
 Behaviour:
-- **Provider selection:** per merchant, one of `auto`, `anthropic`, `openai` or `none`.
+- **Provider selection:** per merchant, one of `auto` (Anthropic → OpenAI → Gemini, first saved key wins), `gemini`, `anthropic`, `openai` or `none`.
 - **Limits:** a timeout of `AI_TIMEOUT_SECONDS`; one retry on 429 or 5xx.
 - **Logging:** every call writes an `ai_usage` row (purpose, provider, model, tokens, latency, success, error). Prompts, outputs and keys are never stored.
 - **Failure handling:** if no provider is available or the call fails, it raises `LLMUnavailable`. Callers then show **labelled rules-based** output, or an explicit "unavailable" state such as the intelligence summary. RecoverAI never fabricates AI output.
@@ -254,7 +256,7 @@ Behaviour:
 ## 13. Deployment topology
 
 - **Render Blueprint** (`render.yaml`): a Python web service for the API (health check `/api/health`) and a static site for the dashboard (SPA rewrite). `JWT_SECRET` and `SECRETS_KEY` are generated.
-- **Database:** Supabase Postgres via `DATABASE_URL`, after applying `supabase/migrations/0001_init.sql`. SQLite is the default for local runs.
+- **Database:** Supabase Postgres via `DATABASE_URL`, after applying `supabase/migrations/0001_init.sql` (and `0002_gemini_provider.sql` for databases created before Gemini support). Local SQLite files are upgraded in place on start. SQLite is the default for local runs.
 - **Alternatives:** `backend/Dockerfile` (Railway, Fly) and `frontend/vercel.json` (Vercel).
 - **MCP server** (`mcp_server/`): exposes recovery tools to MCP clients through the same REST API.
 

@@ -285,3 +285,52 @@ def test_secrets_key_accepts_any_long_string(monkeypatch):
     monkeypatch.setattr(get_settings(), "secrets_key", "not-a-fernet-key but long and random 123")
     f = providers._fernet()
     assert f.decrypt(f.encrypt(b"ok")) == b"ok"
+
+
+# ---------------------------------------------------------------- Gemini (free tier) via OpenAI-compatible endpoint
+def test_gemini_provider_tool_loop_echoes_thought_signatures(monkeypatch, client, demo, db):
+    r = client.put("/api/integrations/gemini", json={"values": {"api_key": "AIzaSyTEST-gemini-123456"}}, headers=demo)
+    assert r.status_code == 200 and "AIzaSyTEST-gemini-123456" not in r.text
+    client.put("/api/integrations-ai-provider", json={"ai_provider": "gemini"}, headers=demo)
+    calls = []
+    sig = {"google": {"thought_signature": "c2lnbmF0dXJlLWJ5dGVz"}}
+
+    def fake_post(url, headers, body):
+        calls.append(body)
+        assert url == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        assert headers["Authorization"] == "Bearer AIzaSyTEST-gemini-123456"
+        assert body["model"] == "gemini-3.8-flash" and "max_completion_tokens" not in body
+        assert body["max_tokens"] > 2048 and body["reasoning_effort"] == "low"
+        if len(calls) == 1:
+            msg = {"role": "assistant", "content": None, "tool_calls": [{"id": "fn_1", "type": "function", "extra_content": sig,
+                                                                          "function": {"name": "get_recovery_cases", "arguments": "{\"limit\": 2}"}}]}
+        else:
+            assistant = [m for m in body["messages"] if m["role"] == "assistant" and m.get("tool_calls")][-1]
+            assert assistant["tool_calls"][0]["extra_content"] == sig      # signature echoed back unchanged
+            msg = {"role": "assistant", "content": "Two cases need attention."}
+        return httpx.Response(200, json={"choices": [{"message": msg}], "usage": {"prompt_tokens": 12, "completion_tokens": 6}})
+    monkeypatch.setattr(llm, "_post", fake_post)
+    out = client.post("/api/ai/chat", json={"message": "What needs attention?"}, headers=demo).json()
+    assert out["generated_by"] == "llm" and out["answer"] == "Two cases need attention."
+    rows = db.scalars(select(AIUsage).where(AIUsage.purpose == "copilot")).all()
+    assert rows and all(x.provider == "gemini" and x.model == "gemini-3.8-flash" for x in rows)
+    st = client.get("/api/integrations", headers=demo).json()
+    assert st["active_ai"]["provider"] == "gemini"
+
+
+def test_gemini_free_tier_rate_limit_falls_back_transparently(monkeypatch, client, demo):
+    client.put("/api/integrations/gemini", json={"values": {"api_key": "AIzaSyTEST-gemini-123456"}}, headers=demo)
+    client.put("/api/integrations-ai-provider", json={"ai_provider": "gemini"}, headers=demo)
+    monkeypatch.setattr(llm, "_post", lambda url, headers, body: httpx.Response(
+        429, json={"error": {"code": 429, "message": "Resource has been exhausted (e.g. check quota)."}}))
+    out = client.post("/api/intelligence/ai-summary", headers=demo).json()
+    assert out["available"] is False and "free-tier limit" in out["reason"]
+    t = client.post("/api/integrations/gemini/test", json={}, headers=demo).json()
+    assert t["ok"] is False and "rate limit" in t["message"]
+
+
+def test_auto_mode_uses_gemini_when_it_is_the_only_key(client, demo):
+    client.put("/api/integrations/gemini", json={"values": {"api_key": "AIzaSyTEST-gemini-123456", "model": "gemini-3.6-flash"}}, headers=demo)
+    client.put("/api/integrations-ai-provider", json={"ai_provider": "auto"}, headers=demo)
+    a = client.get("/api/integrations", headers=demo).json()["active_ai"]
+    assert a["provider"] == "gemini" and a["model"] == "gemini-3.6-flash"

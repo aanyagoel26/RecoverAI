@@ -8,7 +8,7 @@ This report states **what was actually executed**, what the results were, and **
 - PostgreSQL 16
 - Chromium (driven by Playwright for Python)
 
-**Network restriction:** outbound access to PayPal, Anthropic, OpenAI, Resend and Twilio was **blocked** in this environment. RecoverAI's own *Test connection* reported it honestly as `NETWORK_ERROR: Could not reach PayPal: 403 Forbidden`.
+**Network restriction:** outbound access to PayPal, Google Gemini, Anthropic, OpenAI, Resend and Twilio was **blocked** in this environment. RecoverAI's own *Test connection* reported it honestly as `NETWORK_ERROR: Could not reach PayPal: 403 Forbidden`.
 
 ---
 
@@ -16,11 +16,11 @@ This report states **what was actually executed**, what the results were, and **
 
 | Area | What was run | Result |
 |---|---|---|
-| Backend automated tests | `python -m pytest -q` (72 tests) | **72 passed**, 0 failed |
+| Backend automated tests | `python -m pytest -q` (75 tests) | **75 passed**, 0 failed |
 | Frontend type-check and build | `npm run build` (`tsc -b` + `vite build`) | **Passed**. One warning: the main JS bundle is ~2.1 MB (~600 KB gzipped) |
 | Browser end-to-end | 17 journeys, Playwright + Chromium, against the real API (SQLite) and the Vite dev server | **17 / 17 passed** |
 | Browser console | Errors captured across all journeys | 2, both **intentional** negative tests (wrong password → 401; invalid phone → 422) |
-| Postgres migration | `supabase/migrations/0001_init.sql` applied to a fresh PostgreSQL 16 database | **24 tables created; RLS enabled on 24 / 24** |
+| Postgres migration | `supabase/migrations/0001_init.sql` applied to a fresh PostgreSQL 16 database (and `0002_gemini_provider.sql` applied to both a fresh and an older database) | **24 tables created; RLS enabled on 24 / 24** |
 | App on Postgres | Demo login, overview, intelligence, insights, integrations, firewall, cases, customers, Failure Lab, vault save | **All HTTP 200**; credentials stored encrypted and returned masked |
 | Real PayPal Sandbox calls | — | **Not executed** (no network to PayPal). See *Needs your credentials* |
 | Real AI, email, SMS calls | — | **Not executed** (no keys, no network). See *Needs your credentials* |
@@ -28,7 +28,7 @@ This report states **what was actually executed**, what the results were, and **
 
 ---
 
-## 1. Backend automated tests (72)
+## 1. Backend automated tests (75)
 
 Run with `cd backend; python -m pytest -q`. The tests use an in-memory SQLite database and **FakePayPal**, an in-process double that reproduces PayPal's documented contracts:
 - OAuth token and 401 refresh
@@ -45,13 +45,14 @@ Run with `cd backend; python -m pytest -q`. The tests use an in-memory SQLite da
 | `test_platform.py` | 22 | Signup, login, weak passwords; **tenant isolation**; analyst role can't approve; state transitions and out-of-order events; classification only from documented PayPal codes ("Unknown" never invented); no reminders for paid orders; **no contact without consent**; message limits; **preview-only email never claimed as sent**; AI recommendations validated by policy; AI message rejected if it drops the amount; revenue numbers come from rows; simulator estimates never counted; agent detects abandonment; sequential follow-ups |
 | `test_agentic.py` | 8 | Failure Lab real-decline → Pay Later rail; high value → PayPal Invoice + `INVOICING.INVOICE.PAID` recovery; invoice sync; lab labelled DEMO without PayPal; abandoned → real order + Venmo rail; **negative testing refused against Live**; Trust Firewall blocks and traces; runs endpoint |
 | `test_llm_path.py` | 3 | AI explanation used, but rules decide; Copilot tool loop; AI failure falls back with a label |
-| `test_v3.py` | 21 | See below |
+| `test_v3.py` | 24 | See below |
 
 `test_v3.py` covers:
 - **Credential vault:** masks and encrypts values; credentials saved in the dashboard drive real PayPal calls and webhook verification; `SECRETS_KEY` accepts any long string.
 - **Live switch:** needs explicit confirmation, and Sandbox credentials are never used for Live.
 - **OpenAI-compatible provider:** tool loop works and usage is recorded.
 - **AI unavailable is transparent:** no fake output.
+- **Google Gemini (free tier):** requests go to Google's OpenAI-compatible endpoint with the right key, model and token budget; Gemini's thought-signature metadata on tool calls is echoed back unchanged; a free-tier rate limit (HTTP 429) falls back to labelled rules-based text with a clear reason; *Auto* picks Gemini when it is the only key.
 - **Timeouts and retries:**
   - a timeout is not treated as a failure;
   - an **unsafe retry is blocked** after reconciliation;
@@ -98,6 +99,7 @@ Also checked directly against the API: in the demo, approving the timeout scenar
 
 | Defect | Impact | Fix | Regression test |
 |---|---|---|---|
+| Adding Gemini changed the allowed-provider list in the database | An existing local database would reject Gemini keys | Startup rebuilds just the credentials table in place (all data and saved keys kept); Supabase gets `0002_gemini_provider.sql` | Verified on a database created by the previous version |
 | Internal actions (e.g. *Retry capture*) could run automatically in **Approval** mode | Policy bypass | The planner now respects `requires_approval` | `test_timeout_is_not_failure_and_unsafe_retry_blocked` (asserts the retry stays *Proposed*), `test_automatic_mode_holds_large_amounts_for_approval` |
 | The **shared demo** workspace accepted saved API keys and a Live switch | One visitor could plant keys or break PayPal for every other visitor | Integration changes are locked on the demo (`DEMO_INTEGRATIONS_LOCKED`); UI is read-only with an explanation | `test_shared_demo_integrations_are_locked` |
 | `SECRETS_KEY` had to be in Fernet format | Any other value (e.g. a platform-generated secret) would crash the vault | Any long string is accepted (SHA-256 stretched) | `test_secrets_key_accepts_any_long_string` |
@@ -120,7 +122,7 @@ These paths are implemented against PayPal's and the providers' documented APIs 
 | PayPal webhooks | `Verify: SUCCESS`, processed once | Register webhook (tunnel or deployed URL) and pay a test checkout |
 | PayPal Invoicing v2 | Invoice created and sent; `INVOICING.INVOICE.PAID` recovers the case | Failure Lab → *High-value decline* → approve; pay the invoice as the sandbox buyer |
 | PayPal Live | Not intended for the hackathon; never tested | — |
-| Anthropic / OpenAI | Real explanation, message, Copilot and summary; AI usage rows | Integrations → AI provider → Test, then use any AI feature |
+| Google Gemini / Anthropic / OpenAI | Real explanation, message, Copilot and summary; AI usage rows | Integrations → AI provider → Test, then use any AI feature |
 | Resend | Real email received; verification and reset emails | Integrations → Email → Send test to yourself |
 | Twilio | Real SMS; signed status callback → *Delivery confirmed* | Integrations → SMS → test; needs a public URL for callbacks |
 | Windows setup | The PowerShell steps in SETUP_GUIDE.md | Follow the guide |
@@ -143,7 +145,7 @@ These paths are implemented against PayPal's and the providers' documented APIs 
 ## How to reproduce
 ```powershell
 # backend tests
-cd backend; .\.venv\Scripts\Activate.ps1; python -m pytest -q        # 72 passed
+cd backend; .\.venv\Scripts\Activate.ps1; python -m pytest -q        # 75 passed
 
 # frontend type-check + build
 cd ..\frontend; npm run build

@@ -13,7 +13,8 @@ const FIELD_LABEL: Record<string, string> = {
   from_email: "From address", account_sid: "Account SID", auth_token: "Auth token", from_number: "From number (E.164)",
 };
 const FIELD_HINT: Record<string, string> = {
-  client_id: "PayPal Developer Dashboard → Apps & Credentials → your app", client_secret: "Shown under the Client ID (click Show)",
+  client_id: "PayPal Developer Dashboard → Apps & Credentials → your app",
+  api_key: "Stored encrypted; only the last 4 characters are ever shown", client_secret: "Shown under the Client ID (click Show)",
   webhook_id: "Your app → Webhooks → the webhook you added (copy its ID)", model: "Leave empty for the default",
   base_url: "Only for OpenAI-compatible providers; default https://api.openai.com/v1", from_email: 'e.g. "Store <billing@yourdomain.com>" (verified domain in Resend)',
   from_number: "A Twilio number you own, e.g. +15551234567",
@@ -148,13 +149,23 @@ export function Integrations() {
         <div className="grid gap-4 xl:grid-cols-3 [&>*]:min-w-0">
           <Card title="Provider" sub={d.active_ai ? `Active: ${d.active_ai.provider} · ${d.active_ai.model} (${d.active_ai.source})` : "No AI provider active — RecoverAI uses its transparent rules engine"}>
             <div className="space-y-3 p-5">
-              <Tabs value={d.ai_provider} onChange={(v) => !locked && aiSel.mutate(v)} items={[{ value: "auto", label: "Auto" }, { value: "anthropic", label: "Anthropic" }, { value: "openai", label: "OpenAI" }, { value: "none", label: "Off" }]} />
+              <div className="overflow-x-auto"><Tabs value={d.ai_provider} onChange={(v) => !locked && aiSel.mutate(v)} items={[{ value: "auto", label: "Auto" }, { value: "gemini", label: "Gemini" }, { value: "anthropic", label: "Anthropic" }, { value: "openai", label: "OpenAI" }, { value: "none", label: "Off" }]} /></div>
               <ErrorBox error={aiSel.error} />
+              <p className="text-xs text-ink-400"><b>Auto</b> uses whichever key you saved (Anthropic, then OpenAI, then Gemini). Pick <b>Gemini</b> to always use your free key.</p>
               <p className="text-xs text-ink-400">AI writes explanations, messages and Copilot answers. It never decides payment state, recovery eligibility or amounts — the Trust Firewall does. If the provider fails, screens show a labelled rules-based fallback.</p>
             </div>
           </Card>
           <Card className="xl:col-span-2" title="Credentials">
-            <div className="space-y-8 p-5"><CredentialForm provider="anthropic" p={pv.anthropic} locked={locked} /><div className="border-t border-ink-800 pt-6"><CredentialForm provider="openai" p={pv.openai} locked={locked} /></div></div>
+            <div className="space-y-8 p-5">
+              <div className="space-y-3">
+                <Notice tone="green"><b>Free option:</b> get a Gemini API key at no cost from{" "}
+                  <a className="underline" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio → Get API key</a> (no card needed).
+                  Leave <i>Model</i> empty for the default. Free-tier keys have per-minute and per-day limits; when one is reached RecoverAI shows labelled rules-based text instead.</Notice>
+                <CredentialForm provider="gemini" p={pv.gemini} locked={locked} />
+              </div>
+              <div className="border-t border-ink-800 pt-6"><CredentialForm provider="anthropic" p={pv.anthropic} locked={locked} /></div>
+              <div className="border-t border-ink-800 pt-6"><CredentialForm provider="openai" p={pv.openai} locked={locked} /></div>
+            </div>
           </Card>
           <Card className="xl:col-span-3" title="AI usage" sub="Every call is recorded without prompts, outputs or keys">
             {!usage.data ? <Loading /> : (<>

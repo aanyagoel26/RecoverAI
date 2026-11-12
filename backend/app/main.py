@@ -45,6 +45,28 @@ def _sqlite_schema_upgrade():
         backup = f"{path}.bak-{int(time.time())}"
         os.replace(path, backup)
         log.warning("Database schema changed: old SQLite file moved to %s and a fresh database was created", backup)
+        return
+    _sqlite_widen_provider_check()
+
+
+def _sqlite_widen_provider_check():
+    """Newer versions add AI providers (e.g. Gemini). SQLite can't alter a CHECK constraint, so the small
+    integration_credentials table is rebuilt in place — every saved credential, account and payment is kept."""
+    from .models import PROVIDER_KEYS
+    table = "integration_credentials"
+    with dbmod.engine.begin() as conn:
+        sql = conn.exec_driver_sql("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)).scalar()
+        if not sql or all(f"'{p}'" in sql for p in PROVIDER_KEYS):
+            return
+        cols = ", ".join(c.name for c in Base.metadata.tables[table].columns)
+        conn.exec_driver_sql(f"ALTER TABLE {table} RENAME TO _old_{table}")
+        for (idx,) in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
+                                           (f"_old_{table}",)).fetchall():
+            conn.exec_driver_sql(f'DROP INDEX "{idx}"')
+        Base.metadata.tables[table].create(conn)
+        conn.exec_driver_sql(f"INSERT INTO {table} ({cols}) SELECT {cols} FROM _old_{table}")
+        conn.exec_driver_sql(f"DROP TABLE _old_{table}")
+    log.warning("Upgraded %s to allow new AI providers (saved credentials kept)", table)
 
 
 def init_db():

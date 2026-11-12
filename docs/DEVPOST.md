@@ -46,7 +46,7 @@ RecoverAI is an autonomous recovery agent for PayPal merchants.
 - **Agentic:** MCP server (Python MCP SDK 2.x) with 8 tools over the same REST API, so the same Trust Firewall applies.
 - **Frontend:** React, TypeScript, Tailwind, Recharts, **AG Grid** for the live payments table, and the official `@paypal/react-paypal-js`.
 - **Deploy:** one-click **Render** Blueprint (API + static site).
-- **Quality:** 72 backend tests (PayPal flows against a contract-faithful PayPal double, webhooks, idempotency, safe retry and reconciliation, credential vault, tenant isolation, guardrails, AI provider abstraction, auth flows), migration validated on Postgres 16, and 17 headless-browser end-to-end journeys (all passing; the only console errors are the two intentional negative tests).
+- **Quality:** 75 backend tests (PayPal flows against a contract-faithful PayPal double, webhooks, idempotency, safe retry and reconciliation, credential vault, tenant isolation, guardrails, AI provider abstraction incl. free Google Gemini, auth flows), migration validated on Postgres 16, and 17 headless-browser end-to-end journeys (all passing; the only console errors are the two intentional negative tests).
 
 ## Challenges we ran into
 - **Not making things up.** It's tempting to map every processor code to a reason. We only map documented PayPal issue codes. Anything else becomes *Unknown*, and raw codes are shown as evidence.

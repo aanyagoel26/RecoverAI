@@ -60,17 +60,17 @@ python -m uvicorn app.main:app --reload --port 8000
 cd frontend; npm install; npm run dev                             # http://localhost:5173
 ```
 - Click **Explore the demo workspace**, or create your own account.
-- Then open **Integrations** and paste your PayPal Sandbox keys, an AI key (Anthropic or OpenAI), and optionally Resend/Twilio. Secrets are encrypted at rest and never shown again.
+- Then open **Integrations** and paste your PayPal Sandbox keys, an AI key (**Google Gemini — free**, or Anthropic / OpenAI), and optionally Resend/Twilio. Secrets are encrypted at rest and never shown again.
 - Without keys, everything runs in a clearly labelled demo mode. AI text is labelled *rules-based*, and messages are stored as *preview only*.
 
 **Deploy:** Render → New → Blueprint → this repo (`render.yaml` creates the API and the static site). See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-**Tests:** `cd backend; python -m pytest -q` runs **72 tests**, covering:
+**Tests:** `cd backend; python -m pytest -q` runs **75 tests**, covering:
 - PayPal OAuth, orders, capture, invoicing, webhooks and negative testing, against a contract-faithful PayPal double.
 - The credential vault.
 - Safe retry and reconciliation.
 - Idempotency, tenant isolation, roles and the Trust Firewall.
-- The AI provider abstraction.
+- The AI provider abstraction (Gemini, Anthropic, OpenAI).
 - Auth flows.
 
 In addition, 17 browser journeys were run with Playwright. What was and wasn't tested against real services is in [TESTING_REPORT.md](TESTING_REPORT.md).

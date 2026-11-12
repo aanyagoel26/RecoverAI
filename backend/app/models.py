@@ -40,7 +40,7 @@ FAILURE_CATEGORIES = (
 )
 RECOVERY_MODES = ("AUTOMATIC", "APPROVAL", "MANUAL")
 ROLES = ("owner", "admin", "analyst")
-PROVIDER_KEYS = ("paypal_sandbox", "paypal_live", "anthropic", "openai", "resend", "twilio")
+PROVIDER_KEYS = ("paypal_sandbox", "paypal_live", "anthropic", "openai", "gemini", "resend", "twilio")
 
 
 class TimestampMixin:
@@ -103,7 +103,7 @@ class MerchantSettings(TimestampMixin, Base):
     notify_on: Mapped[list] = mapped_column(JSON, default=lambda: ["recovered", "approval", "blocked", "escalation", "integration", "duplicate"])
     # provider selection
     paypal_environment: Mapped[str] = mapped_column(String(10), default="sandbox")  # sandbox | live
-    ai_provider: Mapped[str] = mapped_column(String(20), default="auto")  # auto | anthropic | openai | none
+    ai_provider: Mapped[str] = mapped_column(String(20), default="auto")  # auto | anthropic | openai | gemini | none
 
 
 class PayPalConnection(TimestampMixin, Base):

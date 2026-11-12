@@ -136,8 +136,8 @@ All credentials are entered here, encrypted at rest (Fernet), and **never shown 
   - **Test connection** (a real OAuth token request).
   - **Recent webhook events**, with verification and processing status, and replay for demo events.
 - **AI provider:**
-  - Anthropic or OpenAI (or any OpenAI-compatible API).
-  - Choose Auto, Anthropic, OpenAI or Off.
+  - **Google Gemini (free tier, no card needed)**, Anthropic, or OpenAI (or any OpenAI-compatible API).
+  - Choose Auto, Gemini, Anthropic, OpenAI or Off.
   - Test connection.
   - **AI usage** log: purpose, model, tokens, latency, errors. Prompts and outputs are not stored.
 - **Email (Resend)** and **SMS (Twilio)**: save, test (optionally send a test message to yourself), remove.

@@ -88,7 +88,7 @@ CREATE TABLE integration_credentials (
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	PRIMARY KEY (id), 
 	CONSTRAINT uq_cred_provider UNIQUE (merchant_id, provider), 
-	CONSTRAINT ck_cred_provider CHECK (provider IN ('paypal_sandbox', 'paypal_live', 'anthropic', 'openai', 'resend', 'twilio')), 
+	CONSTRAINT ck_cred_provider CHECK (provider IN ('paypal_sandbox', 'paypal_live', 'anthropic', 'openai', 'gemini', 'resend', 'twilio')), 
 	FOREIGN KEY(merchant_id) REFERENCES merchants (id) ON DELETE CASCADE
 );
 CREATE INDEX ix_integration_credentials_merchant_id ON integration_credentials (merchant_id);
@@ -267,8 +267,8 @@ CREATE TABLE orders (
 	FOREIGN KEY(product_id) REFERENCES products (id)
 );
 CREATE INDEX ix_orders_merchant_status ON orders (merchant_id, status);
-CREATE INDEX ix_orders_merchant_id ON orders (merchant_id);
 CREATE INDEX ix_orders_customer_id ON orders (customer_id);
+CREATE INDEX ix_orders_merchant_id ON orders (merchant_id);
 CREATE TABLE checkout_sessions (
 	id VARCHAR(32) NOT NULL, 
 	merchant_id VARCHAR(32) NOT NULL, 

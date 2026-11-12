@@ -17,7 +17,7 @@ Submit a draft on Devpost early. You can edit it until the deadline.
 
 ## 3. Deploy on Render (25 min, also targets the Render sponsor prize)
 - [ ] render.com → **New → Blueprint** → pick the repo. `render.yaml` creates `recoverai-api` and `recoverai-web`.
-- [ ] Fill in the secret env vars on `recoverai-api`: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (and `PAYPAL_WEBHOOK_ID` after step 1). Optional: `RESEND_API_KEY` + `EMAIL_FROM`. These power the shared demo workspace, whose integrations are read-only for visitors.
+- [ ] Fill in the secret env vars on `recoverai-api`: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `GEMINI_API_KEY` (free), `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (and `PAYPAL_WEBHOOK_ID` after step 1). Optional: `RESEND_API_KEY` + `EMAIL_FROM`. These power the shared demo workspace, whose integrations are read-only for visitors.
 - [ ] If Render gave different URLs than `recoverai-api.onrender.com` / `recoverai-web.onrender.com`, update `FRONTEND_URL`, `CORS_ORIGINS`, `PUBLIC_API_URL` (API) and `VITE_API_URL` (web, then redeploy).
 - [ ] Free instances sleep. Open the API URL `/api/health` a minute before recording or before judging.
 - [ ] The default SQLite database resets on each deploy, which is fine for a demo (it reseeds). For persistence, set `DATABASE_URL` to Supabase and run `supabase/migrations/0001_init.sql`.

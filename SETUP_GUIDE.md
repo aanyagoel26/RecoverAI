@@ -6,6 +6,8 @@ This guide takes you from the ZIP file to a running RecoverAI with real PayPal S
 - About 15 minutes to run it locally in demo mode.
 - About 30 more minutes to connect PayPal Sandbox, an AI provider and email.
 
+**Free AI:** use a Google Gemini API key from AI Studio (see [step 8](#8-connect-an-ai-provider)). No card needed.
+
 **What works without any accounts:**
 - The whole app runs locally in a clearly labelled demo mode.
 - AI explanations come from a labelled rules engine.
@@ -193,7 +195,7 @@ You have two choices.
 1. Create a project at https://supabase.com.
 2. In **Project Settings → Database → Connection string**, use the *Session pooler* URI. It looks like:
    `postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`
-3. Open **SQL Editor**, paste the whole file `supabase\migrations\0001_init.sql`, and click **Run**.
+3. Open **SQL Editor**, paste the whole file `supabase\migrations\0001_init.sql`, and click **Run**. Then do the same with `0002_gemini_provider.sql`. It is safe to run on any version.
    - This creates the 24 tables.
    - Row-level security is on for all 24 with no public policies, so Supabase's public `anon` key cannot read payment data. The API connects as the database owner and enforces per-merchant isolation itself.
 4. In `backend\.env`, set `DATABASE_URL=<that URI>` (plain `postgresql://` works) and restart the API.
@@ -298,13 +300,26 @@ Optional. The AI writes plain-English explanations, customer messages, Copilot a
 
 The AI **never** decides payment status, eligibility or amounts. RecoverAI's rules engine and the Trust Firewall do. Without AI, screens show labelled **rules-based** text, and the AI summary says it is unavailable. RecoverAI never invents AI output.
 
-**Anthropic (Claude)**
+**Google Gemini: free, recommended if you don't want to pay**
+1. Go to https://aistudio.google.com/apikey and sign in with any Google account.
+2. Click **Create API key**. If asked, pick or create a Google Cloud project. Copy the key (it starts with `AIza`). No card or billing is needed.
+3. In RecoverAI, sign in to **your own account** (not the demo) and open **Integrations → AI provider**.
+4. In the **Google Gemini** box, paste the key into **API key**. Leave **Model** empty to use the default (`gemini-3.8-flash`).
+5. Click **Save securely**, then **Test connection**. You should see something like *gemini-3.8-flash answered "ready"*.
+6. At the top, under **Provider**, click **Gemini**.
+
+Things to know about the free tier:
+- **Limits:** there are per-minute and per-day request limits. Your current limits are shown in AI Studio. When a limit is hit, RecoverAI shows labelled *rules-based* text and the reason appears in **AI usage**. Wait a minute and try again.
+- **Your data:** on the free tier, Google may use what you send to improve its products. That's fine for Sandbox and demo data. Use a paid plan before sending real customers' details.
+- **Other free models:** in **Model**, you can type another free Gemini model ID listed in AI Studio (for example a *Flash-Lite* model, which usually has higher free limits).
+
+**Anthropic (Claude): paid**
 1. Create a key at https://console.anthropic.com → **API Keys**. Add billing credit.
 2. In **Integrations → AI provider → Anthropic**, paste the key.
    - Leave **Model** empty to use the default (`claude-sonnet-5-5`), or enter any current model ID from Anthropic's docs.
 3. Click **Save securely**, then **Test connection**.
 
-**OpenAI (or any OpenAI-compatible API)**
+**OpenAI (or any OpenAI-compatible API): paid**
 1. Create a key at https://platform.openai.com → **API keys**.
 2. In **Integrations → AI provider → OpenAI**, paste the key.
    - Model defaults to `gpt-4o-mini`.
@@ -312,8 +327,8 @@ The AI **never** decides payment status, eligibility or amounts. RecoverAI's rul
 3. Save, then Test.
 
 **Choose which one is used** with the provider selector:
-- **Auto:** Anthropic if available, otherwise OpenAI.
-- **Anthropic** or **OpenAI:** that provider only.
+- **Auto:** the first saved key in this order: Anthropic, OpenAI, Gemini. With only a Gemini key, Auto uses Gemini.
+- **Gemini**, **Anthropic** or **OpenAI:** that provider only.
 - **Off:** no AI.
 
 **AI usage** lists every call: purpose, model, tokens, latency and errors. Prompts, outputs and keys are never stored there.
@@ -385,12 +400,14 @@ Merchant credentials (PayPal, AI, email, SMS) are best entered in the app's **In
 | `PAYPAL_BASE_URL` | `https://api-m.sandbox.paypal.com` or `https://api-m.paypal.com` | No | — | both | backend-only |
 | `PAYPAL_WEBHOOK_ID` | Verifies server-wide webhook signatures | No (needed for fallback webhooks) | PayPal app → Webhooks | both | backend-only |
 | `PAYPAL_CURRENCY` | Default currency | No (USD) | — | both | backend-only |
-| `AI_PROVIDER` | `auto`, `anthropic` or `openai` | No | — | both | backend-only |
+| `AI_PROVIDER` | `auto`, `gemini`, `anthropic` or `openai` | No | — | both | backend-only |
 | `ANTHROPIC_API_KEY` | Server-wide Claude key | No | console.anthropic.com | both | **backend-only, secret** |
 | `ANTHROPIC_MODEL` | Claude model ID | No | Anthropic docs | both | backend-only |
 | `OPENAI_API_KEY` | Server-wide OpenAI key | No | platform.openai.com | both | **backend-only, secret** |
 | `OPENAI_MODEL` | OpenAI model | No | OpenAI docs | both | backend-only |
 | `OPENAI_BASE_URL` | OpenAI-compatible endpoint | No | Your provider | both | backend-only |
+| `GEMINI_API_KEY` | Server-wide Google Gemini key (**free tier**) | No | aistudio.google.com/apikey | both | **backend-only, secret** |
+| `GEMINI_MODEL` | Gemini model ID | No (`gemini-3.8-flash`) | AI Studio model list | both | backend-only |
 | `AI_TIMEOUT_SECONDS` | AI request timeout | No (45) | — | both | backend-only |
 | `RESEND_API_KEY` | Email delivery, including verification and reset emails | No | resend.com → API Keys | both | **backend-only, secret** |
 | `EMAIL_FROM` | Sender address (verified domain) | With Resend | Your domain | both | backend-only |
@@ -449,7 +466,7 @@ cd C:\dev\recoverai\backend
 python -m pytest -q
 ```
 
-Expected: `72 passed`. The tests use an in-memory database and a built-in PayPal double, so they need no internet access and no keys.
+Expected: `75 passed`. The tests use an in-memory database and a built-in PayPal double, so they need no internet access and no keys.
 
 Type-check and build the frontend:
 ```powershell
@@ -542,6 +559,17 @@ Or run the API on another port (`--port 8001`). If you do, change the proxy targ
 - Without a Resend connection (saved in Integrations or `RESEND_API_KEY` in `.env`), the link is printed in the API window instead (development only).
 - With Resend, check that `EMAIL_FROM` uses a verified domain.
 
+#### Gemini: "rate limit (free-tier limit reached…)"
+- You hit the free per-minute or per-day limit. Wait a minute (daily limits reset at midnight Pacific time), or set **Model** to a Flash-Lite model.
+- Check your limits in AI Studio.
+
+#### Gemini: "HTTP 400 … API key not valid" or "HTTP 403"
+- Copy the key again from AI Studio. Make sure there are no spaces.
+- Check that the Gemini API is available for your Google account and region.
+
+#### Gemini: "HTTP 404 … model not found"
+- The model ID in **Model** is wrong or retired. Clear the field to use the default, or copy an exact ID from AI Studio.
+
 #### "AI summary unavailable" / explanations say "rules-based"
 - No AI provider is connected, the key is invalid, or the provider timed out.
 - See **Integrations → AI provider → AI usage** for the exact error.
@@ -576,6 +604,6 @@ Start the API again.
 - [ ] Integrations → PayPal Sandbox → **Test connection** shows **Connected**
 - [ ] Payments → **New test checkout** → paid with the sandbox buyer → payment **Completed · SANDBOX**
 - [ ] (Optional) Webhook registered; **Recent webhook events** shows `Verify: SUCCESS`
-- [ ] (Optional) AI provider connected; Failure Intelligence → **AI summary** works
+- [ ] (Optional) Gemini (free) or another AI provider connected; Failure Intelligence → **AI summary** works
 - [ ] (Optional) Resend connected; the test email arrived
-- [ ] (Optional) `python -m pytest -q` → 72 passed
+- [ ] (Optional) `python -m pytest -q` → 75 passed

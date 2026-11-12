@@ -12,7 +12,7 @@
 `render.yaml` defines `recoverai-api` (Python, free plan, health check `/api/health`) and `recoverai-web` (static site with SPA rewrite).
 1. Render → **New → Blueprint** → select the repo.
 2. `JWT_SECRET` and `SECRETS_KEY` are generated.
-   - Optionally fill in server-wide fallbacks on `recoverai-api`: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `PAYPAL_WEBHOOK_ID` (used by the shared demo workspace), plus `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, `RESEND_API_KEY` + `EMAIL_FROM`, and `TWILIO_*`.
+   - Optionally fill in server-wide fallbacks on `recoverai-api`: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `PAYPAL_WEBHOOK_ID` (used by the shared demo workspace), plus `GEMINI_API_KEY` (free), `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, `RESEND_API_KEY` + `EMAIL_FROM`, and `TWILIO_*`.
    - Merchants can instead paste their own keys in **Integrations**.
    - Never change `SECRETS_KEY` after merchants have saved credentials.
 3. If Render assigns different hostnames, update `FRONTEND_URL`, `CORS_ORIGINS`, `PUBLIC_API_URL` on the API and `VITE_API_URL` on the web service (then redeploy the web service).

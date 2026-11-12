@@ -25,6 +25,7 @@ services:
       - { key: AI_PROVIDER, value: auto }
       - { key: ANTHROPIC_API_KEY, sync: false }
       - { key: OPENAI_API_KEY, sync: false }
+      - { key: GEMINI_API_KEY, sync: false }        # free tier: aistudio.google.com/apikey
       - { key: RESEND_API_KEY, sync: false }
       - { key: EMAIL_FROM, sync: false }
       - { key: TWILIO_ACCOUNT_SID, sync: false }
