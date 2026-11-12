@@ -148,13 +148,37 @@ export function Integrations() {
         <div className="grid gap-4 xl:grid-cols-3 [&>*]:min-w-0">
           <Card title="Provider" sub={d.active_ai ? `Active: ${d.active_ai.provider} · ${d.active_ai.model} (${d.active_ai.source})` : "No AI provider active — RecoverAI uses its transparent rules engine"}>
             <div className="space-y-3 p-5">
-              <Tabs value={d.ai_provider} onChange={(v) => !locked && aiSel.mutate(v)} items={[{ value: "auto", label: "Auto" }, { value: "anthropic", label: "Anthropic" }, { value: "openai", label: "OpenAI" }, { value: "none", label: "Off" }]} />
+               <div className="overflow-x-auto">                
+                 <Tabs value={d.ai_provider} onChange={(v) => !locked && aiSel.mutate(v)}                  
+                   items={[{ value: "auto", label: "Auto" }, { value: "gemini", label: "Gemini" },                    
+                           { value: "anthropic", label: "Anthropic" }, { value: "openai", label: "OpenAI" },                    
+                           { value: "none", label: "Off" }]} />              
+               </div>              
+              <p className="text-xs text-ink-400"><b>Auto</b> uses whichever key you saved                
+                (Anthropic, then OpenAI, then Gemini). Pick <b>Gemini</b> to always use your free key.</p>
               <ErrorBox error={aiSel.error} />
               <p className="text-xs text-ink-400">AI writes explanations, messages and Copilot answers. It never decides payment state, recovery eligibility or amounts — the Trust Firewall does. If the provider fails, screens show a labelled rules-based fallback.</p>
             </div>
           </Card>
           <Card className="xl:col-span-2" title="Credentials">
-            <div className="space-y-8 p-5"><CredentialForm provider="anthropic" p={pv.anthropic} locked={locked} /><div className="border-t border-ink-800 pt-6"><CredentialForm provider="openai" p={pv.openai} locked={locked} /></div></div>
+           <div className="space-y-8 p-5">              
+             <div className="space-y-3">                
+               <Notice tone="green">                  
+                 <b>Free option:</b> get a Gemini API key at no cost from{" "}                  
+                 <a className="underline" href="https://aistudio.google.com/apikey" target="_blank"                    
+                   rel="noreferrer">Google AI Studio - Get API key</a> (no card needed). Leave                  
+                 <i> Model</i> empty for the default. Free-tier keys have per-minute and per-day                  
+                 limits; when one is reached RecoverAI shows labelled rules-based text instead.                
+               </Notice>                
+               <CredentialForm provider="gemini" p={pv.gemini} locked={locked} />              
+             </div>              
+             <div className="border-t border-ink-800 pt-6">                
+               <CredentialForm provider="anthropic" p={pv.anthropic} locked={locked} />              
+             </div>              
+             <div className="border-t border-ink-800 pt-6">                
+               <CredentialForm provider="openai" p={pv.openai} locked={locked} />              
+             </div>            
+           </div>
           </Card>
           <Card className="xl:col-span-3" title="AI usage" sub="Every call is recorded without prompts, outputs or keys">
             {!usage.data ? <Loading /> : (<>
