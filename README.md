@@ -3,7 +3,9 @@
 > **AI recommends. Rules decide. PayPal confirms.**
 > Built for the PayPal AI Hackathon 2026.
 
-![Mission Control](C:\Users\Bhumika\OneDrive\Pictures\mainpage.png)
+![Mission Control](<img width="950" height="475" alt="mainpage" src="https://github.com/user-attachments/assets/95a29891-b73c-47cb-afb5-2db96b133148" />
+<img width="1600" height="773" alt="image" src="https://github.com/user-attachments/assets/322adc1d-c614-4d32-8a4d-73ebe36ce1a1" />
+)
 
 RecoverAI is an autonomous recovery agent for PayPal merchants:
 
