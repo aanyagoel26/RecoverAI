@@ -1,0 +1,48 @@
+# One-click Render Blueprint: API (Python) + dashboard (static site).
+# If either service name is taken on Render, update the matching URL values below after the first deploy.
+services:
+  - type: web
+    name: recoverai-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
+    healthCheckPath: /api/health
+    envVars:
+      - { key: PYTHON_VERSION, value: "3.12.7" }
+      - { key: APP_ENV, value: production }
+      - { key: JWT_SECRET, generateValue: true }
+      - { key: SECRETS_KEY, generateValue: true }    # encrypts credentials merchants save in Integrations
+      - { key: FRONTEND_URL, value: https://recoverai-web.onrender.com }
+      - { key: CORS_ORIGINS, value: https://recoverai-web.onrender.com }
+      - { key: PUBLIC_API_URL, value: https://recoverai-api.onrender.com }
+      - { key: DATABASE_URL, value: "sqlite:///./recoverai.db" }   # replace with Supabase Postgres URL for persistence
+      - { key: PAYPAL_BASE_URL, value: https://api-m.sandbox.paypal.com }
+      - { key: PAYPAL_CLIENT_ID, sync: false }
+      - { key: PAYPAL_CLIENT_SECRET, sync: false }
+      - { key: PAYPAL_WEBHOOK_ID, sync: false }
+      - { key: AI_PROVIDER, value: auto }
+      - { key: ANTHROPIC_API_KEY, sync: false }
+      - { key: OPENAI_API_KEY, sync: false }
+      - { key: RESEND_API_KEY, sync: false }
+      - { key: EMAIL_FROM, sync: false }
+      - { key: TWILIO_ACCOUNT_SID, sync: false }
+      - { key: TWILIO_AUTH_TOKEN, sync: false }
+      - { key: TWILIO_FROM_NUMBER, sync: false }
+      - { key: AGENT_LOOP_SECONDS, value: "60" }
+      - { key: SEED_DEMO_ON_START, value: "true" }
+      - { key: DEMO_INTEGRATIONS_LOCKED, value: "true" }
+
+  - type: web
+    name: recoverai-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - { type: rewrite, source: /*, destination: /index.html }
+    headers:
+      - { path: /*, name: X-Frame-Options, value: DENY }
+    envVars:
+      - { key: VITE_API_URL, value: https://recoverai-api.onrender.com }

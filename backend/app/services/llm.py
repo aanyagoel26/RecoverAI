@@ -1,0 +1,175 @@
+"""Provider-independent AI layer.
+
+Supports Anthropic (Messages API, native tool use) and any OpenAI-compatible Chat Completions API (function calling).
+Callers always speak one format (Anthropic-style content blocks); this module translates. Every call is time-limited,
+retried once on 429/5xx, and recorded in `ai_usage` (no prompts, outputs or keys are stored).
+If no provider is configured or the call fails, LLMUnavailable is raised and callers show a transparent fallback.
+"""
+import json
+import logging
+import re
+import time
+
+import httpx
+from sqlalchemy.orm import Session
+
+from ..config import get_settings
+
+log = logging.getLogger("recoverai.llm")
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+
+
+class LLMUnavailable(Exception):
+    pass
+
+
+def _post(url: str, headers: dict, body: dict) -> httpx.Response:
+    timeout = get_settings().ai_timeout_seconds
+    for attempt in (0, 1):
+        try:
+            r = httpx.post(url, json=body, headers=headers, timeout=timeout)
+        except httpx.HTTPError as e:
+            if attempt == 0:
+                time.sleep(1)
+                continue
+            raise LLMUnavailable(f"network: {type(e).__name__}")
+        if r.status_code in (429, 500, 502, 503, 529) and attempt == 0:
+            time.sleep(1.5)
+            continue
+        return r
+    raise LLMUnavailable("unreachable")
+
+
+def _record(db, mid, cfg, purpose, ok, started, usage=None, error=None):
+    if db is None:
+        return
+    from ..models import AIUsage
+    try:
+        db.add(AIUsage(merchant_id=mid, provider=cfg["provider"], model=cfg["model"][:80], purpose=purpose[:40], success=ok,
+                       latency_ms=int((time.monotonic() - started) * 1000), input_tokens=(usage or {}).get("in"),
+                       output_tokens=(usage or {}).get("out"), error=(error or None) and str(error)[:300]))
+        db.flush()
+    except Exception:  # usage logging must never break the product
+        log.exception("could not record AI usage")
+
+
+# ---------------------------------------------------------------- Anthropic
+def _anthropic(cfg, messages, system, tools, max_tokens):
+    body = {"model": cfg["model"], "max_tokens": max_tokens, "system": system, "messages": messages}
+    if tools:
+        body["tools"] = tools
+    r = _post(ANTHROPIC_URL, {"x-api-key": cfg["api_key"], "anthropic-version": "2023-06-01", "content-type": "application/json"}, body)
+    if r.status_code >= 400:
+        raise LLMUnavailable(f"Anthropic HTTP {r.status_code}: {_err(r)}")
+    data = r.json()
+    u = data.get("usage") or {}
+    return data, {"in": u.get("input_tokens"), "out": u.get("output_tokens")}
+
+
+# ---------------------------------------------------------------- OpenAI-compatible
+def _to_openai_messages(system, messages):
+    out = [{"role": "system", "content": system}]
+    for m in messages:
+        c = m["content"]
+        if isinstance(c, str):
+            out.append({"role": m["role"], "content": c})
+            continue
+        if m["role"] == "assistant":
+            text = "".join(b.get("text", "") for b in c if b.get("type") == "text")
+            calls = [{"id": b["id"], "type": "function", "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
+                     for b in c if b.get("type") == "tool_use"]
+            msg = {"role": "assistant", "content": text or None}
+            if calls:
+                msg["tool_calls"] = calls
+            out.append(msg)
+        else:
+            for b in c:
+                if b.get("type") == "tool_result":
+                    out.append({"role": "tool", "tool_call_id": b["tool_use_id"], "content": b.get("content") or ""})
+                elif b.get("type") == "text":
+                    out.append({"role": "user", "content": b["text"]})
+    return out
+
+
+def _openai(cfg, messages, system, tools, max_tokens):
+    body = {"model": cfg["model"], "messages": _to_openai_messages(system, messages), "max_completion_tokens": max_tokens}
+    if tools:
+        body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t.get("description", ""),
+                                                            "parameters": t.get("input_schema") or {"type": "object", "properties": {}}}} for t in tools]
+    headers = {"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json"}
+    url = f"{cfg['base_url']}/chat/completions"
+    r = _post(url, headers, body)
+    if r.status_code == 400 and "max_completion_tokens" in r.text:  # older OpenAI-compatible servers
+        body["max_tokens"] = body.pop("max_completion_tokens")
+        r = _post(url, headers, body)
+    if r.status_code >= 400:
+        raise LLMUnavailable(f"OpenAI HTTP {r.status_code}: {_err(r)}")
+    data = r.json()
+    msg = (data.get("choices") or [{}])[0].get("message") or {}
+    blocks = []
+    if msg.get("content"):
+        blocks.append({"type": "text", "text": msg["content"]})
+    for tc in msg.get("tool_calls") or []:
+        try:
+            args = json.loads(tc["function"].get("arguments") or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        blocks.append({"type": "tool_use", "id": tc["id"], "name": tc["function"]["name"], "input": args})
+    u = data.get("usage") or {}
+    return {"content": blocks}, {"in": u.get("prompt_tokens"), "out": u.get("completion_tokens")}
+
+
+def _err(r: httpx.Response) -> str:
+    try:
+        j = r.json()
+        e = j.get("error")
+        return (e.get("message") if isinstance(e, dict) else str(e or j))[:200]
+    except ValueError:
+        return r.text[:200]
+
+
+# ---------------------------------------------------------------- public API
+def chat(messages: list[dict], *, system: str, tools: list[dict] | None = None, max_tokens: int = 1200,
+         db: Session | None = None, merchant_id: str | None = None, purpose: str = "chat") -> dict:
+    from .providers import ai_config
+    cfg = ai_config(db, merchant_id)
+    if not cfg:
+        raise LLMUnavailable("No AI provider configured")
+    started = time.monotonic()
+    try:
+        data, usage = (_anthropic if cfg["provider"] == "anthropic" else _openai)(cfg, messages, system, tools, max_tokens)
+    except LLMUnavailable as e:
+        log.warning("AI call failed (%s/%s): %s", cfg["provider"], purpose, e)
+        _record(db, merchant_id, cfg, purpose, False, started, error=e)
+        raise
+    _record(db, merchant_id, cfg, purpose, True, started, usage)
+    data["_model"] = f"{cfg['provider']}:{cfg['model']}"
+    return data
+
+
+def text_of(resp: dict) -> str:
+    return "".join(b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text")
+
+
+def complete_json(prompt: str, *, system: str, max_tokens: int = 800, db: Session | None = None,
+                  merchant_id: str | None = None, purpose: str = "json") -> dict:
+    """Ask for a JSON object; raises LLMUnavailable on any failure so callers fall back transparently."""
+    resp = chat([{"role": "user", "content": prompt}], system=system + "\nRespond with a single JSON object only.",
+                max_tokens=max_tokens, db=db, merchant_id=merchant_id, purpose=purpose)
+    m = re.search(r"\{.*\}", text_of(resp), re.S)
+    if not m:
+        raise LLMUnavailable("No JSON in AI response")
+    try:
+        out = json.loads(m.group(0))
+    except json.JSONDecodeError as e:
+        raise LLMUnavailable(f"Bad JSON: {e}")
+    if not isinstance(out, dict):
+        raise LLMUnavailable("AI returned non-object JSON")
+    out["_model"] = resp.get("_model")
+    return out
+
+
+def model_label(db: Session | None, merchant_id: str | None) -> str | None:
+    from .providers import ai_config
+    cfg = ai_config(db, merchant_id)
+    return f"{cfg['provider']}:{cfg['model']}" if cfg else None

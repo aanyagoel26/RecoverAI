@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --ink-950: 6 11 24; --ink-900: 10 18 36; --ink-850: 13 23 45; --ink-800: 17 29 55; --ink-700: 26 40 71; --ink-600: 38 55 92;
+  --ink-500: 58 77 117; --ink-400: 107 127 166; --ink-300: 154 170 203; --ink-200: 201 211 230; --ink-100: 232 237 246;
+}
+html.light {
+  color-scheme: light;
+  --ink-950: 245 247 251; --ink-900: 255 255 255; --ink-850: 241 244 249; --ink-800: 233 237 244; --ink-700: 221 227 237; --ink-600: 203 212 226;
+  --ink-500: 148 163 184; --ink-400: 100 116 139; --ink-300: 71 85 105; --ink-200: 51 65 85; --ink-100: 15 23 42;
+}
+/* Light theme: headings and accent text need darker tones for contrast on white */
+html.light .text-white:not(.keep-white) { color: rgb(15 23 42); }
+html.light .text-mint-300, html.light .text-mint-400 { color: #047857; }
+html.light .text-volt-300, html.light .text-volt-400 { color: #1d4ed8; }
+html.light .text-amberx-400 { color: #b45309; }
+html.light .text-rose-300, html.light .text-rose-400 { color: #be123c; }
+html.light .text-violet-200, html.light .text-violet-300 { color: #6d28d9; }
+html.light .card { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
+html.light .grid-bg { background-image: linear-gradient(rgba(29,78,216,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(29,78,216,0.06) 1px, transparent 1px); }
+html, body, #root { min-height: 100%; }
+body { @apply bg-ink-950 text-ink-100 font-sans antialiased; font-feature-settings: "ss01", "cv11"; }
+::selection { background: rgba(59, 123, 255, 0.35); }
+* { scrollbar-width: thin; scrollbar-color: #26375C transparent; }
+
+@layer components {
+  .card { @apply rounded-xl border border-ink-700/70 bg-ink-900/80 shadow-card; }
+  .card-pad { @apply p-5; }
+  .label { @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-400; }
+  .num { @apply font-mono tabular-nums tracking-tight; }
+  .input { @apply w-full rounded-lg border border-ink-600 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-400 outline-none transition focus:border-volt-500 focus:ring-2 focus:ring-volt-500/25; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-volt-500 text-white hover:bg-volt-400 shadow-[0_6px_20px_-8px_rgba(59,123,255,0.8)]; }
+  .btn-success { @apply btn bg-mint-500 text-ink-950 hover:bg-mint-400; }
+  .btn-ghost { @apply btn border border-ink-600 bg-ink-850 text-ink-100 hover:border-ink-500 hover:bg-ink-800; }
+  .btn-danger { @apply btn border border-rose-500/40 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20; }
+  .btn-sm { @apply px-2.5 py-1.5 text-xs; }
+  .tab { @apply rounded-md px-3 py-1.5 text-xs font-semibold text-ink-300 transition hover:text-ink-100; }
+  .tab-active { @apply bg-ink-700 text-white; }
+  .row-hover { @apply transition hover:bg-ink-800/60; }
+}
+
+.grid-bg {
+  background-image: linear-gradient(rgba(59,123,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(59,123,255,0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); } 100% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); } }
+.live-dot { animation: pulse-ring 1.6s ease-out infinite; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fade-up { animation: fade-up .35s ease-out both; }
+
+/* AG Grid: vertically centre custom cell renderers */
+.ag-cell { display: flex; align-items: center; }
+.ag-cell .inline-flex { line-height: 1.25; }

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" font-family="Inter, Helvetica, Arial, sans-serif">
+  <rect width="1200" height="640" fill="#060B18"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#6B7FA6"/></marker>
+    <linearGradient id="pp" x1="0" x2="1"><stop offset="0" stop-color="#003087"/><stop offset="1" stop-color="#0070E0"/></linearGradient>
+  </defs>
+  <text x="40" y="48" fill="#fff" font-size="24" font-weight="800">RecoverAI architecture</text>
+  <text x="40" y="74" fill="#9AAACB" font-size="14">AI explains · deterministic rules decide · PayPal confirms</text>
+
+  <!-- clients -->
+  <g font-size="13">
+    <rect x="40" y="110" width="220" height="70" rx="12" fill="#0D172D" stroke="#26375C"/>
+    <text x="60" y="140" fill="#fff" font-weight="700">Merchant dashboard</text><text x="60" y="162" fill="#9AAACB">React · AG Grid · Recharts</text>
+    <rect x="40" y="200" width="220" height="70" rx="12" fill="#0D172D" stroke="#26375C"/>
+    <text x="60" y="230" fill="#fff" font-weight="700">Claude / any MCP client</text><text x="60" y="252" fill="#9AAACB">RecoverAI MCP server</text>
+    <rect x="40" y="290" width="220" height="70" rx="12" fill="#0D172D" stroke="#26375C"/>
+    <text x="60" y="320" fill="#fff" font-weight="700">Buyer checkout /pay/…</text><text x="60" y="342" fill="#9AAACB">JS SDK · Pay Later · Venmo</text>
+  </g>
+
+  <!-- core -->
+  <rect x="320" y="100" width="560" height="470" rx="16" fill="#0A1224" stroke="#3B7BFF" stroke-opacity=".6"/>
+  <text x="340" y="130" fill="#8FB8FF" font-size="13" font-weight="700" letter-spacing="1.5">FASTAPI BACKEND</text>
+  <g font-size="12">
+    <rect x="340" y="145" width="250" height="60" rx="10" fill="#111D37"/><text x="356" y="170" fill="#fff" font-weight="700">Autonomous Recovery Engine</text><text x="356" y="190" fill="#9AAACB">detect → analyse → act → monitor</text>
+    <rect x="610" y="145" width="250" height="60" rx="10" fill="#111D37"/><text x="626" y="170" fill="#fff" font-weight="700">Classifier (PayPal codes only)</text><text x="626" y="190" fill="#9AAACB">unknown ≠ guessed</text>
+    <rect x="340" y="220" width="250" height="60" rx="10" fill="#111D37"/><text x="356" y="245" fill="#fff" font-weight="700">Recovery rails router</text><text x="356" y="265" fill="#9AAACB">Pay Later · Venmo · Invoice · Checkout</text>
+    <rect x="610" y="220" width="250" height="60" rx="10" fill="#111D37"/><text x="626" y="245" fill="#fff" font-weight="700">Explainable scoring</text><text x="626" y="265" fill="#9AAACB">priors + merchant history</text>
+    <rect x="340" y="295" width="520" height="70" rx="10" fill="#0B2A22" stroke="#10B981"/>
+    <text x="356" y="322" fill="#6EE7B7" font-weight="800" font-size="14">Trust Firewall (policy engine)</text>
+    <text x="356" y="345" fill="#C9D3E6">no money movement · not paid · no pending · consent · limits · amount · approval</text>
+    <rect x="340" y="380" width="250" height="60" rx="10" fill="#111D37"/><text x="356" y="405" fill="#fff" font-weight="700">Claude (Anthropic)</text><text x="356" y="425" fill="#9AAACB">explanations · messages · Copilot tools</text>
+    <rect x="610" y="380" width="250" height="60" rx="10" fill="#111D37"/><text x="626" y="405" fill="#fff" font-weight="700">Webhook ingestion</text><text x="626" y="425" fill="#9AAACB">verify → dedupe → idempotent apply</text>
+    <rect x="340" y="455" width="520" height="95" rx="10" fill="#111D37"/><text x="356" y="480" fill="#fff" font-weight="700">Supabase Postgres · 21 tables · RLS deny-by-default</text>
+    <text x="356" y="502" fill="#9AAACB">payments · payment_events · recovery_cases · recovery_actions · agent_runs (traces)</text>
+    <text x="356" y="522" fill="#9AAACB">paypal_invoices · webhook_events (unique) · ai_analyses · communication_logs · audit_logs</text>
+    <text x="356" y="540" fill="#9AAACB">every row labelled PAYPAL_SANDBOX · PAYPAL_LIVE · DEMO_SIMULATED</text>
+  </g>
+
+  <!-- paypal -->
+  <rect x="940" y="100" width="220" height="470" rx="16" fill="url(#pp)"/>
+  <text x="960" y="132" fill="#fff" font-size="16" font-weight="800">PayPal</text>
+  <g font-size="12" fill="#E8EDF6">
+    <text x="960" y="170">OAuth 2.0 client credentials</text>
+    <text x="960" y="200">Orders v2: create · get · capture</text>
+    <text x="960" y="218" fill="#BFD4FF">PayPal-Request-Id idempotency</text>
+    <text x="960" y="248">Invoicing v2: create · send · get</text>
+    <text x="960" y="278">Webhooks + verify-signature</text>
+    <text x="960" y="308">JS SDK: buttons · messages</text>
+    <text x="960" y="326" fill="#BFD4FF">enable-funding paylater, venmo</text>
+    <text x="960" y="356">Sandbox negative testing</text>
+    <text x="960" y="374" fill="#BFD4FF">Mock-Response (Failure Lab)</text>
+  </g>
+
+  <g stroke="#6B7FA6" stroke-width="1.6" fill="none" marker-end="url(#a)">
+    <path d="M260 145 H320"/><path d="M260 235 H320"/><path d="M260 325 H320"/>
+    <path d="M880 200 H940"/><path d="M940 410 H880"/>
+  </g>
+  <text x="886" y="192" fill="#9AAACB" font-size="10">REST</text><text x="886" y="402" fill="#9AAACB" font-size="10">events</text>
+  <text x="40" y="610" fill="#6B7FA6" font-size="12">Revenue counts only after a PayPal capture response or a verified PAYMENT.CAPTURE.COMPLETED / INVOICING.INVOICE.PAID webhook.</text>
+</svg>

@@ -1,0 +1,40 @@
+.env
+*.db
+__pycache__/
+.pytest_cache/
+node_modules/
+dist/
+*.tsbuildinfo
+*.db.bak-*
+.venv/
+venv/
+.env.local
+
+# Environment secrets
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Databases and backups
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Frontend and build files
+node_modules/
+dist/
+build/
+.vite/
+.next/
+
+# Logs and caches
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
