@@ -35,7 +35,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = "https://api.openai.com/v1"
-    ai_timeout_seconds: int = 45
+    # Google Gemini (free tier) via Google's OpenAI-compatible endpoint
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"    ai_timeout_seconds: int = 45
 
     # Email (optional; preview-only mode when absent)
     resend_api_key: str = ""
