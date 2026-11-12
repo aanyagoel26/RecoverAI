@@ -66,7 +66,7 @@ class Settings(BaseSettings):
 
     @property
     def llm_configured(self) -> bool:
-        return bool(self.anthropic_api_key or self.openai_api_key)
+        return bool(self.anthropic_api_key or self.openai_api_key or self.gemini_api_key)
 
     @property
     def email_configured(self) -> bool:
