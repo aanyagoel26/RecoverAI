@@ -23,7 +23,26 @@ SPEC = {
     "paypal_sandbox": {"label": "PayPal Sandbox", "fields": {"client_id": True, "client_secret": True, "webhook_id": False}, "secret": ["client_secret"]},
     "paypal_live": {"label": "PayPal Live", "fields": {"client_id": True, "client_secret": True, "webhook_id": False}, "secret": ["client_secret"]},
     "anthropic": {"label": "Anthropic (Claude)", "fields": {"api_key": True, "model": False}, "secret": ["api_key"]},
-    "openai": {"label": "OpenAI / OpenAI-compatible", "fields": {"api_key": True, "model": False, "base_url": False}, "secret": ["api_key"]},
+    
+"openai": {
+    "label": "OpenAI / OpenAI-compatible",
+    "fields": {
+        "api_key": True,
+        "model": False,
+        "base_url": False,
+    },
+    "secret": ["api_key"],
+},
+
+"gemini": {
+    "label": "Google Gemini (free tier available)",
+    "fields": {
+        "api_key": True,
+        "model": False,
+    },
+    "secret": ["api_key"],
+},
+
     "resend": {"label": "Resend (email)", "fields": {"api_key": True, "from_email": True}, "secret": ["api_key"]},
     "twilio": {"label": "Twilio (SMS)", "fields": {"account_sid": True, "auth_token": True, "from_number": True}, "secret": ["auth_token"]},
 }
@@ -143,29 +162,102 @@ def paypal_data_source(db: Session, mid: str | None) -> str:
 
 
 # ---------------------------------------------------------------- AI
+
+AI_PROVIDERS = ("anthropic", "openai", "gemini")
+
+
+def _auto_order(preferred: str) -> list[str]:
+    """'auto' tries every provider; a server-level preference (AI_PROVIDER)
+    goes first.
+    """
+    order = list(AI_PROVIDERS)
+
+    if preferred in AI_PROVIDERS:
+        order.remove(preferred)
+        order.insert(0, preferred)
+
+    return order
+
+
+def _env_key(prov: str) -> str:
+    s = get_settings()
+
+    return {
+        "anthropic": s.anthropic_api_key,
+        "openai": s.openai_api_key,
+        "gemini": s.gemini_api_key,
+    }[prov]
+
+
+def _default_model(prov: str) -> str:
+    s = get_settings()
+
+    return {
+        "anthropic": s.anthropic_model,
+        "openai": s.openai_model,
+        "gemini": s.gemini_model,
+    }[prov]
+
+
+def _base_url(prov: str, saved: str | None) -> str:
+    s = get_settings()
+
+    if prov == "anthropic":
+        return ""
+
+    if prov == "gemini":
+        return s.gemini_base_url.rstrip("/")  # fixed Google endpoint
+
+    return (saved or s.openai_base_url).rstrip("/")
+
+
 def ai_config(db: Session | None, mid: str | None) -> dict | None:
     s = get_settings()
+
     choice = "auto"
+
     if db is not None and mid:
         ms = merchant_settings(db, mid)
         choice = ms.ai_provider if ms else "auto"
+
     if choice == "none":
         return None
-    order = [choice] if choice in ("anthropic", "openai") else (["anthropic", "openai"] if s.ai_provider in ("auto", "anthropic") else ["openai", "anthropic"])
+
+    order = (
+        [choice]
+        if choice in AI_PROVIDERS
+        else _auto_order(s.ai_provider)
+    )
+
     for prov in order:
         saved = load(db, mid, prov) if db is not None else None
+
         if saved:
-            return {"provider": prov, "api_key": saved["api_key"], "source": "dashboard",
-                    "model": saved.get("model") or (s.anthropic_model if prov == "anthropic" else s.openai_model),
-                    "base_url": (saved.get("base_url") or s.openai_base_url).rstrip("/")}
-        if prov == "anthropic" and s.anthropic_api_key:
-            return {"provider": "anthropic", "api_key": s.anthropic_api_key, "model": s.anthropic_model, "base_url": "", "source": "environment"}
-        if prov == "openai" and s.openai_api_key:
-            return {"provider": "openai", "api_key": s.openai_api_key, "model": s.openai_model, "base_url": s.openai_base_url.rstrip("/"), "source": "environment"}
+            return {
+                "provider": prov,
+                "api_key": saved["api_key"],
+                "source": "dashboard",
+                "model": saved.get("model") or _default_model(prov),
+                "base_url": _base_url(prov, saved.get("base_url")),
+            }
+
+        env_key = _env_key(prov)
+
+        if env_key:
+            return {
+                "provider": prov,
+                "api_key": env_key,
+                "model": _default_model(prov),
+                "base_url": _base_url(prov, None),
+                "source": "environment",
+            }
+
     return None
 
 
-# ---------------------------------------------------------------- email / SMS
+# ----------------------------------------------------------------
+# Email / SMS
+
 def email_config(db: Session | None, mid: str | None) -> dict | None:
     saved = load(db, mid, "resend") if db is not None else None
     if saved:
@@ -197,6 +289,7 @@ def status(db: Session, mid: str) -> dict:
     out["paypal_live"]["env_fallback"] = bool(s.paypal_configured and not s.paypal_is_sandbox)
     out["anthropic"]["env_fallback"] = bool(s.anthropic_api_key)
     out["openai"]["env_fallback"] = bool(s.openai_api_key)
+    out["gemini"]["env_fallback"] = bool(s.gemini_api_key)
     out["resend"]["env_fallback"] = bool(s.resend_api_key)
     out["twilio"]["env_fallback"] = bool(s.twilio_account_sid and s.twilio_auth_token and s.twilio_from_number)
     return out
