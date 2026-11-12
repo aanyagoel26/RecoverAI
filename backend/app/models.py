@@ -40,7 +40,7 @@ FAILURE_CATEGORIES = (
 )
 RECOVERY_MODES = ("AUTOMATIC", "APPROVAL", "MANUAL")
 ROLES = ("owner", "admin", "analyst")
-PROVIDER_KEYS = ("paypal_sandbox", "paypal_live", "anthropic", "openai", "resend", "twilio")
+PROVIDER_KEYS = ("paypal_sandbox", "paypal_live", "anthropic", "openai", "gemini", "resend", "twilio")
 
 
 class TimestampMixin:
