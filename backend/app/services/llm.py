@@ -67,59 +67,223 @@ def _anthropic(cfg, messages, system, tools, max_tokens):
 
 
 # ---------------------------------------------------------------- OpenAI-compatible
+
 def _to_openai_messages(system, messages):
     out = [{"role": "system", "content": system}]
+
     for m in messages:
         c = m["content"]
+
         if isinstance(c, str):
-            out.append({"role": m["role"], "content": c})
+            out.append({
+                "role": m["role"],
+                "content": c,
+            })
             continue
+
         if m["role"] == "assistant":
-            text = "".join(b.get("text", "") for b in c if b.get("type") == "text")
-            calls = [{"id": b["id"], "type": "function", "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
-                     for b in c if b.get("type") == "tool_use"]
-            msg = {"role": "assistant", "content": text or None}
+            text = "".join(
+                b.get("text", "")
+                for b in c
+                if b.get("type") == "text"
+            )
+
+            calls = []
+
+            for b in c:
+                if b.get("type") != "tool_use":
+                    continue
+
+                call = {
+                    "id": b["id"],
+                    "type": "function",
+                    "function": {
+                        "name": b["name"],
+                        "arguments": json.dumps(b.get("input") or {}),
+                    },
+                }
+
+                if b.get("_extra"):
+                    # Gemini thought signatures must be sent back unchanged
+                    call["extra_content"] = b["_extra"]
+
+                calls.append(call)
+
+            msg = {
+                "role": "assistant",
+                "content": text or None,
+            }
+
             if calls:
                 msg["tool_calls"] = calls
+
             out.append(msg)
+
         else:
             for b in c:
                 if b.get("type") == "tool_result":
-                    out.append({"role": "tool", "tool_call_id": b["tool_use_id"], "content": b.get("content") or ""})
+                    out.append({
+                        "role": "tool",
+                        "tool_call_id": b["tool_use_id"],
+                        "content": b.get("content") or "",
+                    })
+
                 elif b.get("type") == "text":
-                    out.append({"role": "user", "content": b["text"]})
+                    out.append({
+                        "role": "user",
+                        "content": b["text"],
+                    })
+
     return out
 
 
+PROVIDER_NAME = {
+    "openai": "OpenAI",
+    "gemini": "Gemini",
+    "anthropic": "Anthropic",
+}
+
+
 def _openai(cfg, messages, system, tools, max_tokens):
-    body = {"model": cfg["model"], "messages": _to_openai_messages(system, messages), "max_completion_tokens": max_tokens}
+    """
+    OpenAI Chat Completions format - used for OpenAI and
+    for Gemini's compatible endpoint.
+    """
+    gemini = cfg["provider"] == "gemini"
+
+    body = {
+        "model": cfg["model"],
+        "messages": _to_openai_messages(system, messages),
+    }
+
+    if gemini:
+        # Gemini counts its "thinking" against the output budget:
+        # leave headroom, think lightly
+        body["max_tokens"] = max_tokens + 2048
+        body["reasoning_effort"] = "low"
+    else:
+        body["max_completion_tokens"] = max_tokens
+
     if tools:
-        body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t.get("description", ""),
-                                                            "parameters": t.get("input_schema") or {"type": "object", "properties": {}}}} for t in tools]
-    headers = {"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json"}
+        body["tools"] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t.get("description", ""),
+                    "parameters": (
+                        t.get("input_schema")
+                        or {
+                            "type": "object",
+                            "properties": {},
+                        }
+                    ),
+                },
+            }
+            for t in tools
+        ]
+
+    headers = {
+        "Authorization": f"Bearer {cfg['api_key']}",
+        "Content-Type": "application/json",
+    }
+
     url = f"{cfg['base_url']}/chat/completions"
+
     r = _post(url, headers, body)
-    if r.status_code == 400 and "max_completion_tokens" in r.text:  # older OpenAI-compatible servers
+
+    if r.status_code == 400 and "max_completion_tokens" in r.text:
+        # Older compatible servers
         body["max_tokens"] = body.pop("max_completion_tokens")
         r = _post(url, headers, body)
+
+    if (
+        r.status_code == 400
+        and "reasoning" in r.text.lower()
+        and "reasoning_effort" in body
+    ):
+        # Model without thinking support
+        body.pop("reasoning_effort")
+        r = _post(url, headers, body)
+
+    name = PROVIDER_NAME.get(
+        cfg["provider"],
+        cfg["provider"],
+    )
+
+    if r.status_code == 429:
+        hint = (
+            " (free-tier limit reached; wait a minute or check your "
+            "quota in Google AI Studio)"
+            if gemini
+            else ""
+        )
+
+        raise LLMUnavailable(
+            f"{name} rate limit{hint}: {_err(r)}"
+        )
+
     if r.status_code >= 400:
-        raise LLMUnavailable(f"OpenAI HTTP {r.status_code}: {_err(r)}")
+        raise LLMUnavailable(
+            f"{name} HTTP {r.status_code}: {_err(r)}"
+        )
+
     data = r.json()
-    msg = (data.get("choices") or [{}])[0].get("message") or {}
+
+    if isinstance(data, list):
+        # Some Gemini responses arrive wrapped in a list
+        data = data[0] if data else {}
+
+    choice = (data.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+
     blocks = []
+
     if msg.get("content"):
-        blocks.append({"type": "text", "text": msg["content"]})
+        blocks.append({
+            "type": "text",
+            "text": msg["content"],
+        })
+
     for tc in msg.get("tool_calls") or []:
         try:
-            args = json.loads(tc["function"].get("arguments") or "{}")
+            args = json.loads(
+                tc["function"].get("arguments") or "{}"
+            )
         except json.JSONDecodeError:
             args = {}
-        blocks.append({"type": "tool_use", "id": tc["id"], "name": tc["function"]["name"], "input": args})
+
+        block = {
+            "type": "tool_use",
+            "id": tc.get("id") or f"call_{len(blocks)}",
+            "name": tc["function"]["name"],
+            "input": args,
+        }
+
+        if tc.get("extra_content"):
+            block["_extra"] = tc["extra_content"]
+
+        blocks.append(block)
+
+    if not blocks:
+        raise LLMUnavailable(
+            f"{name} returned an empty answer "
+            f"(finish reason: {choice.get('finish_reason')})"
+        )
+
     u = data.get("usage") or {}
-    return {"content": blocks}, {"in": u.get("prompt_tokens"), "out": u.get("completion_tokens")}
+
+    return (
+        {"content": blocks},
+        {
+            "in": u.get("prompt_tokens"),
+            "out": u.get("completion_tokens"),
+        },
+    )
 
 
 def _err(r: httpx.Response) -> str:
+
     try:
         j = r.json()
         e = j.get("error")
